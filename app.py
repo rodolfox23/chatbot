@@ -63,15 +63,15 @@ def create_app():
     """
     app = Flask(__name__)
     try:
-       MONGO_URI = os.getenv("MONGODB_URI")
-       client = MongoClient(
-           MONGO_URI,
-           tls=True,
-           tlsCAFile=certifi.where(),
-           serverSelectionTimeoutMS=15000,
-           connectTimeoutMS=15000,
-           socketTimeoutMS=30000,
-       )
+        client = MongoClient(
+               os.getenv("MONGODB_URI"),
+               tlsCAFile=certifi.where(),
+               serverSelectionTimeoutMS=30000,
+               connectTimeoutMS=30000,
+               socketTimeoutMS=30000,
+               retryWrites=True,
+               retryReads=True,
+           )
         db = client['peluqueria_bot']
         app.db = db
         app.clients_collection = db.clients

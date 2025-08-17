@@ -21,4 +21,4 @@ google-api-python-client==2.97.0
 # --- MongoDB Atlas (SRV + TLS) ---
 pymongo[srv]==4.8.0
 dnspython==2.6.1
-certifi==2025.6.2
+certifi==2024.8.30

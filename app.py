@@ -64,7 +64,7 @@ def create_app():
     app = Flask(__name__)
     try:
         client = MongoClient(
-               MONGO_URI,
+               os.getenv("MONGODB_URI"),
                tlsCAFile=certifi.where(),
                serverSelectionTimeoutMS=30000,
                connectTimeoutMS=30000,

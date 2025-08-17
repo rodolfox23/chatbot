@@ -1,7 +1,9 @@
+# --- Web ---
 Flask==2.3.3
 Werkzeug==2.3.7
 gunicorn==21.2.0
 
+# --- Integraciones / Utilidades ---
 twilio==8.5.0
 python-dotenv==1.0.0
 requests==2.31.0
@@ -10,11 +12,13 @@ pytz==2023.3
 schedule==1.2.0
 mercadopago==2.2.0
 
+# --- Google APIs ---
 google-auth==2.22.0
 google-auth-oauthlib==1.0.0
 google-auth-httplib2==0.1.0
 google-api-python-client==2.97.0
 
-# Mongo (con soporte SRV y TLS)
-pymongo[srv]>=4.8
-certifi>=2024.07.04
+# --- MongoDB Atlas (SRV + TLS) ---
+pymongo[srv]==4.8.0
+dnspython==2.6.1
+certifi==2025.6.2

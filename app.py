@@ -16,6 +16,7 @@ from utils import get_settings, load_messages, get_active_services, get_service_
 import dateutil.parser
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
+import certifi
 
 # Cargar variables de entorno al inicio
 load_dotenv()
@@ -67,7 +68,6 @@ def create_app():
     MONGODB_URI = "mongodb+srv://engineer3222:F4TmJs44Ljj8M7As@chatbotpeluqueria.aobk0tc.mongodb.net/peluqueria_bot?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&appName=chatbotpeluqueria"
     # Setup MongoDB Connection
     try:
-        import certifi
         client = MongoClient(
             MONGODB_URI,
             tls=True,                          # explícito

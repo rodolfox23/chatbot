@@ -10,7 +10,14 @@ DB_NAME = "peluqueria_bot"
 
 def get_settings_collection():
     """Get the settings collection from MongoDB."""
-    client = MongoClient(MONGO_URI)
+    import certifi
+    client = MongoClient(
+        MONGO_URI,
+        tlsCAFile=certifi.where(),
+        serverSelectionTimeoutMS=10000,
+        connectTimeoutMS=10000,
+        socketTimeoutMS=10000
+    )
     db = client[DB_NAME]
     return db["settings"]
 
@@ -26,7 +33,14 @@ def get_settings():
 
 def get_db_connection():
     try:
-        client = MongoClient(MONGO_URI)
+        import certifi
+        client = MongoClient(
+            MONGO_URI,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000
+        )
         db = client[DB_NAME]
         return db
     except Exception as e:

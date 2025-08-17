@@ -67,7 +67,14 @@ def create_app():
 
     # Setup MongoDB Connection
     try:
-        client = MongoClient(os.getenv("MONGODB_URI"))
+        import certifi
+        client = MongoClient(
+            os.getenv("MONGODB_URI"),
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000
+        )
         db = client['peluqueria_bot'] # EXPLICITLY select the database
         app.db = db
         app.clients_collection = db.clients

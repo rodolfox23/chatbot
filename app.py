@@ -63,15 +63,15 @@ def create_app():
     """
     app = Flask(__name__)
     try:
-        import certifi
         client = MongoClient(
-            os.getenv("MONGODB_URI"),
-            tls=True,                          # explícito
-            tlsCAFile=certifi.where(),         # bundle CA correcto en Heroku
-            serverSelectionTimeoutMS=5000,     # evita colgarse 30s
-            connectTimeoutMS=5000,
-            socketTimeoutMS=5000,
-        )
+               MONGO_URI,
+               tlsCAFile=certifi.where(),
+               serverSelectionTimeoutMS=30000,
+               connectTimeoutMS=30000,
+               socketTimeoutMS=30000,
+               retryWrites=True,
+               retryReads=True,
+           )
         db = client['peluqueria_bot']
         app.db = db
         app.clients_collection = db.clients

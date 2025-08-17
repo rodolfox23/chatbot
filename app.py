@@ -62,21 +62,17 @@ def create_app():
     This pattern allows each worker to have its own application context.
     """
     app = Flask(__name__)
-
-    # La configuración ahora se maneja directamente con os.getenv(),
-    # por lo que app.config.from_object(Config) ya no es necesario.
-    MONGODB_URI = "mongodb+srv://engineer3222:F4TmJs44Ljj8M7As@chatbotpeluqueria.aobk0tc.mongodb.net/peluqueria_bot?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&appName=chatbotpeluqueria"
-    # Setup MongoDB Connection
     try:
+        import certifi
         client = MongoClient(
-            MONGODB_URI,
+            os.getenv("MONGODB_URI"),
             tls=True,                          # explícito
             tlsCAFile=certifi.where(),         # bundle CA correcto en Heroku
             serverSelectionTimeoutMS=5000,     # evita colgarse 30s
             connectTimeoutMS=5000,
             socketTimeoutMS=5000,
         )
-        db = client['peluqueria_bot'] # EXPLICITLY select the database
+        db = client['peluqueria_bot']
         app.db = db
         app.clients_collection = db.clients
         app.appointments_collection = db.appointments
@@ -191,10 +187,6 @@ def create_app():
         app.appointments_collection = None
         app.clients_collection = None
         app.active_services = []
-
-    # La gestión de la conexión ahora se maneja por cada función que la necesita,
-    # por lo que el teardown global no es estrictamente necesario en este nuevo enfoque.
-
     return app
 
 # Create the app instance using the factory

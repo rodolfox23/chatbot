@@ -1,6 +1,6 @@
 from utils import get_db_connection
 
-db = get_db_connection()
+db = current_app.db
 nuevo_mensaje = (
     "🕒 Ups, no entendí la fecha.\n"
     "Por favor escribe algo así como:\n"

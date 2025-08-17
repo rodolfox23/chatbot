@@ -18,3 +18,5 @@ google-api-python-client==2.97.0
 # Mongo (UNA sola línea, con SRV y versión reciente)
 pymongo[srv]>=4.8
 certifi>=2024.07.04
+python-3.12.5
+

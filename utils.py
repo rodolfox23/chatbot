@@ -14,9 +14,9 @@ def get_settings_collection():
     client = MongoClient(
         MONGO_URI,
         tlsCAFile=certifi.where(),
-        serverSelectionTimeoutMS=10000,
-        connectTimeoutMS=10000,
-        socketTimeoutMS=10000
+        serverSelectionTimeoutMS=30000,
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000
     )
     db = client[DB_NAME]
     return db["settings"]
@@ -37,9 +37,9 @@ def get_db_connection():
         client = MongoClient(
             MONGO_URI,
             tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=10000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000
         )
         db = client[DB_NAME]
         return db

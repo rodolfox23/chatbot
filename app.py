@@ -71,9 +71,9 @@ def create_app():
         client = MongoClient(
             os.getenv("MONGODB_URI"),
             tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=10000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000
         )
         db = client['peluqueria_bot'] # EXPLICITLY select the database
         app.db = db

@@ -21,8 +21,16 @@ def test_mongo_connection():
     print("-" * 50)
     
     try:
-        # Conectar a MongoDB
-        client = MongoClient(MONGODB_URI)
+        # Conectar a MongoDB (misma configuración que app.py)
+        import certifi
+        client = MongoClient(
+            MONGODB_URI,
+            tls=True,                          # explícito
+            tlsCAFile=certifi.where(),         # bundle CA correcto en Heroku
+            serverSelectionTimeoutMS=5000,     # evita colgarse 30s
+            connectTimeoutMS=5000,
+            socketTimeoutMS=5000,
+        )
         db = client['peluqueria_bot']
         
         # Probar conexión básica

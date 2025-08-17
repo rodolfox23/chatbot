@@ -64,12 +64,12 @@ def create_app():
 
     # La configuración ahora se maneja directamente con os.getenv(),
     # por lo que app.config.from_object(Config) ya no es necesario.
-
+    MONGODB_URI = "mongodb+srv://engineer3222:F4TmJs44Ljj8M7As@chatbotpeluqueria.aobk0tc.mongodb.net/peluqueria_bot?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE&appName=chatbotpeluqueria"
     # Setup MongoDB Connection
     try:
         import certifi
         client = MongoClient(
-            os.getenv("MONGODB_URI"),
+            MONGODB_URI,
             tls=True,                          # explícito
             tlsCAFile=certifi.where(),         # bundle CA correcto en Heroku
             serverSelectionTimeoutMS=5000,     # evita colgarse 30s

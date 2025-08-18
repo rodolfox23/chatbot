@@ -75,7 +75,7 @@ def create_app():
             app.active_services = []
             app.settings = {}
             return app
-            
+
         client = MongoClient(mongodb_uri)
         db = client['peluqueria_bot'] # EXPLICITLY select the database
         app.db = db
@@ -86,7 +86,7 @@ def create_app():
         app.active_services = get_active_services()
         if not app.active_services:
             logger.warning("ALERTA: No se encontraron servicios activos en la base de datos.")
-        
+
         logger.info(f"App instance created. MongoDB connected and {len(app.active_services)} services loaded.")
 
         # Cargar settings y messages
@@ -94,20 +94,20 @@ def create_app():
         if not app.settings:
             app.logger.error("CRITICAL: No se pudo cargar la configuración desde la base de datos. La aplicación podría no funcionar como se espera.")
             # Podrías tener un fallback aquí si es necesario
-        
+
         app.messages = load_messages()
         if not app.messages:
             app.logger.warning("ADVERTENCIA: No se pudieron cargar los mensajes desde la BD. Usando mensajes por defecto.")
             app.messages = DEFAULT_MESSAGES
-        
+
         # --- CIRUGÍA DE PLANTILLAS: Se ejecuta siempre para garantizar el formato correcto ---
         try:
-            if not hasattr(app, 'db') or not app.db:
+            if not hasattr(app, 'db') or app.db is None:
                 logger.warning("Skipping template updates - no database connection")
                 return app
-                
+
             messages_collection = app.db.messages
-            
+
             # Plantilla para pedir la fecha
             date_prompt_template = "{emoji} ¡Perfecto! Elegiste {service_name}.\n\n⏰ Nuestro horario es de {start_hour} a {end_hour}.\n\n📅 ¿Cuándo quieres tu cita?\nEscribe el día y la hora. Por ejemplo:\n👉 22/06 a las 14:30\n👉 a las 16:00 (para hoy)\n\nEscribe agendar para volver al menú."
             messages_collection.update_one(
@@ -123,7 +123,7 @@ def create_app():
                 {'$set': {'value': pre_booking_template}},
                 upsert=True
             )
-            
+
             # Plantilla para el menú de servicios
             services_menu_template = "Estos son nuestros servicios disponibles.\n\n1. 💅 Manicure\n2. 👐🦶 Pack Manos + Pies\n3. 👣 Pedicure\n4. 👁️ Pestañas\n\nResponde con el número del servicio que deseas agendar."
             messages_collection.update_one(
@@ -131,7 +131,7 @@ def create_app():
                 {'$set': {'value': services_menu_template}},
                 upsert=True
             )
-            
+
             # Plantilla para confirmación final (CUANDO SE PUEDE AGENDAR MÁS)
             final_conf_can_book_template = "✅ ¡Tu cita está confirmada!\n\nServicio: {service}\nFecha: {date}\n\n¡Te esperamos!\n\n🔁 Si deseas agendar otro servicio, escribe *agendar* para volver al menú.\n❌ Si deseas cancelar esta cita, escribe *cancelar*.\n🚪 Si deseas salir, escribe *salir*."
             messages_collection.update_one(
@@ -147,7 +147,7 @@ def create_app():
                 {'$set': {'value': final_conf_no_book_template}},
                 upsert=True
             )
-            
+
             # Plantilla de bienvenida con instrucciones claras
             welcome_prompt_template = "¡Hola! 👋\n\nPara ver nuestros servicios y reservar una cita, escribe *agendar*.\n\nSi necesitas cancelar una cita existente, escribe *cancelar*."
             messages_collection.update_one(
@@ -155,13 +155,13 @@ def create_app():
                 {'$set': {'value': welcome_prompt_template}},
                 upsert=True
             )
-            
+
             # Plantillas para el flujo de cancelación
             messages_collection.update_one({'key': 'no_appointments_to_cancel'}, {'$set': {'value': 'No tienes citas activas para cancelar.'}}, upsert=True)
             messages_collection.update_one({'key': 'multiple_appointments_to_cancel'}, {'$set': {'value': 'Tienes varias citas. Por favor, responde con el número de la cita que deseas cancelar:\n\n{appointments_list}'}}, upsert=True)
             messages_collection.update_one({'key': 'confirm_cancellation_single'}, {'$set': {'value': 'Has seleccionado cancelar tu cita para *{service}* el día *{date}* a las *{time}*. ¿Estás seguro? Responde *si* o *no*.'}}, upsert=True)
             messages_collection.update_one({'key': 'cancellation_aborted'}, {'$set': {'value': 'Ok, tu cita no ha sido cancelada.'}}, upsert=True)
-            
+
             # Forzar actualización del menú de admin
             settings_collection = app.db.settings
             admin_menu_config = {
@@ -218,14 +218,14 @@ def add_to_calendar(client_name, service_name, date_obj):
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service = build('calendar', 'v3', credentials=credentials)
-        
+
         event = {
             'summary': f'Cita: {service_name} - {client_name}',
             'description': f'Servicio de {service_name} para {client_name}.',
             'start': {'dateTime': date_obj.isoformat()},
             'end': {'dateTime': (date_obj + timedelta(hours=1)).isoformat()},
         }
-        
+
         created_event = service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
         logger.info(f'Evento creado: {created_event.get("htmlLink")}')
         return created_event.get('id')
@@ -267,11 +267,11 @@ def create_payment_link(amount, description, appointment_id):
             "auto_return": "approved",
             "external_reference": str(appointment_id),
         }
-        
+
         logger.info(f"Mercado Pago preference data: {json.dumps(preference_data, indent=2)}")
-        
+
         preference_response = mercadopago_sdk.preference().create(preference_data)
-        
+
         logger.info(f"Mercado Pago API response: {json.dumps(preference_response, indent=2)}")
 
         if preference_response and preference_response.get("status") == 201:
@@ -279,7 +279,7 @@ def create_payment_link(amount, description, appointment_id):
         else:
             logger.error(f"Error creating payment link from Mercado Pago API. Full response: {preference_response}")
             return None
-            
+
     except Exception as e:
         logger.error(f"Exception while creating payment link: {str(e)}", exc_info=True)
         return None
@@ -288,9 +288,9 @@ def get_dynamic_welcome_message(user_name, user_id, phone_number):
     """Generates a dynamic welcome message including active appointments and available services."""
     appointments_collection = current_app.appointments_collection
     active_services = current_app.active_services
-    
+
     message_parts = [f"✨ ¡Hola, {user_name}!"]
-    
+
     # 1. Show existing confirmed appointments
     user_appointments = list(appointments_collection.find({'client_id': user_id, 'status': 'confirmed'}))
     if user_appointments:
@@ -302,11 +302,11 @@ def get_dynamic_welcome_message(user_name, user_id, phone_number):
             time_str = app['date'].strftime('%H:%M')
             message_parts.append(f"*{emoji} {app['service']}*")
             message_parts.append(f"  📅 {date_str} a las {time_str}")
-    
+
     # 2. Get and show available services (not already booked)
     booked_service_names = {app['service'] for app in user_appointments}
     available_services = [s for s in active_services if s['name'] not in booked_service_names]
-    
+
     if available_services:
         if user_appointments:
             message_parts.append("\n\nPara agendar otro servicio, elige una opción:")
@@ -316,12 +316,12 @@ def get_dynamic_welcome_message(user_name, user_id, phone_number):
             message_parts.append("\nPor el momento no hay servicios disponibles para agendar.")
         else:
             message_parts.append("\n¡Bienvenido/a! Por favor, elige el servicio que deseas agendar:")
-        
+
         message_parts.append("") # for a newline
         for i, service in enumerate(available_services, 1):
             emoji = service.get('emoji', '✅')
             message_parts.append(f"*{i}. {emoji} {service['name']}*")
-        
+
         if user_appointments:
             message_parts.append("\nResponde con el número. O si deseas cancelar una cita, escribe *cancelar*.")
         else:
@@ -352,12 +352,12 @@ Esperamos verte pronto en la peluquería.
 def format_confirmed_appointments(user_appointments, active_services, santiago_tz):
     if not user_appointments:
         return "(No tienes citas confirmadas)"
-    
+
     def get_appointment_date(app):
         """Extrae la fecha de una cita, manejando tanto strings ISO como datetime"""
         date_value = app['date']
         santiago_tz = pytz.timezone('America/Santiago')
-        
+
         if isinstance(date_value, str):
             # Es un string ISO, parsearlo
             import dateutil.parser
@@ -365,37 +365,37 @@ def format_confirmed_appointments(user_appointments, active_services, santiago_t
         else:
             # Es un datetime
             parsed_date = date_value
-        
+
         # Asegurar que tenga zona horaria
         if parsed_date.tzinfo is None:
             parsed_date = santiago_tz.localize(parsed_date)
-        
+
         return parsed_date
-    
+
     lines = []
     # Ordenar por fecha, manejando ambos tipos de datos
     sorted_appointments = sorted(user_appointments, key=get_appointment_date)
-    
+
     for app in sorted_appointments:
         service_info = next((s for s in active_services if s['name'] == app['service']), {})
         emoji = service_info.get('emoji', '✅')
-        
+
         # Obtener la fecha parseada
         app_date = get_appointment_date(app)
-        
+
         # Convertir a hora local de Santiago
         if app_date.tzinfo is None:
             local_time = santiago_tz.localize(app_date)
         else:
             local_time = app_date.astimezone(santiago_tz)
-        
+
         # Calcular hora de fin usando la duración del servicio
         duration_minutes = get_service_duration(app['service'])
         end_time = local_time + timedelta(minutes=duration_minutes)
-        
+
         date_str = f"{local_time.strftime('%d/%m a las %H:%M')}-{end_time.strftime('%H:%M')}"
         lines.append(f"{emoji} {app['service']} — {date_str}")
-    
+
     return "\n".join(lines)
 
 def format_services_menu(available_services):
@@ -406,28 +406,28 @@ def format_services_menu(available_services):
             "🚪 Escribe salir para finalizar."
         )
     lines = ["\nPor favor, elige el servicio que deseas agendar:\n"]
-    
+
     # Agregar servicios disponibles
     for i, service in enumerate(available_services, 1):
         emoji = service.get('emoji', '✅')
         lines.append(f"{i}. {emoji} {service['name']}")
-    
+
     # Agregar opciones de navegación
     lines.append("")
     lines.append("❌ Escribe *cancelar* para anular una cita.")
     lines.append("🚪 Escribe *salir* para finalizar.")
-    
+
     return "\n".join(lines)
 
 def handle_initial_state(resp, user):
     appointments_collection = current_app.appointments_collection
     active_services = current_app.active_services
     santiago_tz = pytz.timezone('America/Santiago')
-    
+
     # Verificar si el calendario está bloqueado
     settings = get_settings()
     calendar_blocked = settings.get('calendar_blocked', False)
-    
+
     if calendar_blocked:
         resp.message("🔒 **CALENDARIO CERRADO**\n\nLo sentimos, hoy no estamos tomando nuevas citas.\n\n📅 **Estado:** Temporalmente cerrado\n⏰ **Reapertura:** Próximamente\n\nPara cancelar citas existentes, escribe: *cancelar*")
         return
@@ -457,7 +457,7 @@ def handle_service_selection(resp, user, incoming_msg):
     clients_collection = current_app.clients_collection
     messages = current_app.messages
     settings = current_app.settings
-    
+
     last_shown_services = user.get('last_shown_services', [])
 
     if not incoming_msg.isdigit():
@@ -467,7 +467,7 @@ def handle_service_selection(resp, user, incoming_msg):
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -521,7 +521,7 @@ def handle_date_selection(resp, user, incoming_msg):
     clients_collection = current_app.clients_collection
     settings = current_app.settings
     messages = current_app.messages
-    
+
     service_pending = user.get('service_pending')
     if not service_pending:
         resp.message("Hubo un error, no hay un servicio pendiente. Por favor, empieza de nuevo.")
@@ -536,7 +536,7 @@ def handle_date_selection(resp, user, incoming_msg):
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -562,17 +562,17 @@ def handle_date_selection(resp, user, incoming_msg):
     else:
         parsed_date = parsed_date.astimezone(santiago_tz)
     # Fin refuerzo
-    
+
     if parsed_date < datetime.now(santiago_tz):
         resp.message("No puedes agendar una cita en el pasado.")
         return
-    
+
     if (parsed_date - datetime.now(santiago_tz)).days > 90:
         resp.message("Solo puedes agendar con hasta 90 días de anticipación.")
         return
 
     is_available, message = check_availability(parsed_date, service_pending)
-    
+
     if not is_available:
         local_time_for_error_msg = parsed_date.strftime('%H:%M')
         error_message_template = messages.get('unavailable_slot_error', "❌ Lo siento, la hora solicitada ({time}) no está disponible.")
@@ -585,7 +585,7 @@ def handle_date_selection(resp, user, incoming_msg):
         # Refuerzo: guardar siempre como string ISO con zona horaria
         {'$set': {'state': 'awaiting_confirmation', 'pending_date': parsed_date.isoformat()}}
     )
-    
+
     active_services = current_app.active_services
     service_info = next((s for s in active_services if s['name'] == service_pending), {})
     service_emoji = service_info.get('emoji', '✅')
@@ -606,11 +606,11 @@ def handle_booking_confirmation(resp, user, incoming_msg):
     clients_collection = current_app.clients_collection
     appointments_collection = current_app.appointments_collection
     messages = current_app.messages
-    
+
     if 'pagar' in incoming_msg:
         service_name = user.get('service_pending')
         pending_date = user.get('pending_date')
-        
+
         if not service_name or not pending_date:
             resp.message("Ha ocurrido un error, no hay suficiente información para confirmar. Por favor, empieza de nuevo.")
             clients_collection.update_one({'_id': user['_id']}, {'$set': {'state': 'initial'}, '$unset': {'service_pending': '', 'pending_date': ''}})
@@ -634,7 +634,7 @@ def handle_booking_confirmation(resp, user, incoming_msg):
             '_id': appointment_id, 'client_id': user['_id'], 'service': service_name,
             'date': pending_date.isoformat(), 'status': 'pending_payment', 'created_at': datetime.now(pytz.utc)
         }
-        
+
         appointments_collection.insert_one(new_appointment)
 
         settings = get_settings()
@@ -703,7 +703,7 @@ También puedes escribir:
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -727,7 +727,7 @@ def handle_final_confirmation(resp, user, incoming_msg):
     clients_collection = current_app.clients_collection
     appointments_collection = current_app.appointments_collection
     messages = current_app.messages
-    
+
     appointment_to_process = appointments_collection.find_one({
         'client_id': user['_id'],
         'status': 'pending_payment'
@@ -756,7 +756,7 @@ def handle_final_confirmation(resp, user, incoming_msg):
         # Crear evento en Google Calendar
         logger.info(f"[APP] Iniciando creación de evento en Google Calendar para cita {appointment_to_process['_id']}")
         logger.info(f"[APP] Datos de la cita: servicio={appointment_to_process['service']}, cliente={user['name']}, fecha={parsed_date}")
-        
+
         event = create_calendar_event(
             service_type=appointment_to_process['service'],
             client_name=user['name'],
@@ -778,7 +778,7 @@ def handle_final_confirmation(resp, user, incoming_msg):
             # Conversión robusta de UTC a Santiago SOLO SI ES UTC
             santiago_tz = pytz.timezone('America/Santiago')
             appt_date_raw = appointment_to_process['date']
-            
+
             # Parsear la fecha desde string ISO para recuperar la hora exacta
             if isinstance(appt_date_raw, str):
                 # Es un string ISO, parsearlo
@@ -786,13 +786,13 @@ def handle_final_confirmation(resp, user, incoming_msg):
             else:
                 # Es un datetime, usarlo directamente
                 appt_date = appt_date_raw
-            
+
             if appt_date.tzinfo is not None and hasattr(appt_date.tzinfo, 'zone') and appt_date.tzinfo.zone == 'UTC':
                 local_time = appt_date.astimezone(santiago_tz)
             else:
                 local_time = appt_date
             confirmation_date_time_str = local_time.strftime('%d/%m a las %H:%M')
-            
+
             total_services_count = len(current_app.active_services)
             user_confirmed_appointments_count = appointments_collection.count_documents({
                 'client_id': user['_id'],
@@ -827,7 +827,7 @@ def handle_final_confirmation(resp, user, incoming_msg):
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -869,7 +869,7 @@ def handle_cancellation_start(resp, user):
             import dateutil.parser
             fecha = dateutil.parser.isoparse(fecha)
         local_time = fecha.astimezone(pytz.timezone('America/Santiago'))
-        
+
         clients_collection.update_one(
             {'_id': user['_id']},
             {'$set': {
@@ -891,13 +891,13 @@ def handle_cancellation_start(resp, user):
         for i, appt in enumerate(user_appointments, 1):
             service_info = next((s for s in active_services if s['name'] == appt['service']), {})
             emoji = service_info.get('emoji', '✅')
-            
+
             # Verificar si la fecha es string y convertirla si es necesario
             fecha = appt['date']
             if isinstance(fecha, str):
                 import dateutil.parser
                 fecha = dateutil.parser.isoparse(fecha)
-            
+
             local_time = fecha.astimezone(santiago_tz)
             # Calcular hora de fin usando la duración del servicio
             duration_minutes = get_service_duration(appt['service'])
@@ -920,16 +920,16 @@ def handle_cancellation_choice(resp, user, incoming_msg):
     clients_collection = current_app.clients_collection
     appointments_collection = current_app.appointments_collection
     messages = current_app.messages
-    
+
     # Manejar la opción "salir"
     if incoming_msg.lower() == 'salir':
         clients_collection.update_one(
-            {'_id': user['_id']}, 
+            {'_id': user['_id']},
             {'$set': {'state': 'initial'}, '$unset': {'cancellation_options': ''}}
         )
         resp.message("Ok, has salido del menú de cancelación. Escribe 'hola' para volver al menú principal.")
         return
-    
+
     cancellation_options = user.get('cancellation_options', [])
     if not incoming_msg.isdigit() or not (1 <= int(incoming_msg) <= len(cancellation_options)):
         # Incrementar contador de intentos incorrectos
@@ -938,7 +938,7 @@ def handle_cancellation_choice(resp, user, incoming_msg):
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -961,20 +961,20 @@ def handle_cancellation_choice(resp, user, incoming_msg):
     appointment_id_to_cancel = cancellation_options[choice_index]
 
     appointment = appointments_collection.find_one({'_id': ObjectId(appointment_id_to_cancel)})
-    
+
     if not appointment:
         resp.message("Lo siento, no pudimos encontrar esa cita. Por favor, intenta de nuevo.")
         clients_collection.update_one({'_id': user['_id']}, {'$set': {'state': 'initial'}})
         return
-        
+
     # Verificar si la fecha es string y convertirla si es necesario
     fecha = appointment['date']
     if isinstance(fecha, str):
         import dateutil.parser
         fecha = dateutil.parser.isoparse(fecha)
-    
+
     local_time = fecha.astimezone(pytz.timezone('America/Santiago'))
-    
+
     clients_collection.update_one(
         {'_id': user['_id']},
         {'$set': {
@@ -982,7 +982,7 @@ def handle_cancellation_choice(resp, user, incoming_msg):
             'cancellation_pending_id': str(appointment['_id'])
         }, '$unset': {'cancellation_options': ''}}
     )
-    
+
     resp.message(messages.get('confirm_cancellation_single').format(
         emoji=appointment['service'],
         service=appointment['service'],
@@ -997,7 +997,7 @@ def handle_cancellation_confirmation(resp, user, incoming_msg):
     messages = current_app.messages
 
     appointment_id_str = user.get('cancellation_pending_id')
-    
+
     def reset_state():
         clients_collection.update_one({'_id': user['_id']}, {'$set': {'state': 'initial'}, '$unset': {'cancellation_pending_id': ''}})
 
@@ -1005,9 +1005,9 @@ def handle_cancellation_confirmation(resp, user, incoming_msg):
         resp.message("Hubo un error, no hay una cancelación pendiente. Por favor, empieza de nuevo.")
         reset_state()
         return
-        
+
     appointment = appointments_collection.find_one({'_id': ObjectId(appointment_id_str)})
-    
+
     if incoming_msg == 'si':
         if not appointment:
             resp.message("Error: No se pudo encontrar la cita a cancelar. Ya podría haber sido cancelada.")
@@ -1043,7 +1043,7 @@ def handle_cancellation_confirmation(resp, user, incoming_msg):
             {'_id': user['_id']},
             {'$set': {'invalid_command_attempts': invalid_attempts}}
         )
-        
+
         # Verificar si debe mostrar advertencia o bloquear
         if invalid_attempts >= 6:
             # Bloquear usuario
@@ -1063,13 +1063,13 @@ def handle_cancellation_confirmation(resp, user, incoming_msg):
             active_services = current_app.active_services
             service_info = next((s for s in active_services if s['name'] == appointment['service']), {})
             emoji = service_info.get('emoji', '✅')
-            
+
             # Verificar si la fecha es string y convertirla si es necesario
             fecha = appointment['date']
             if isinstance(fecha, str):
                 import dateutil.parser
                 fecha = dateutil.parser.isoparse(fecha)
-            
+
             local_time = fecha.astimezone(santiago_tz)
             # Calcular hora de fin usando la duración del servicio
             duration_minutes = get_service_duration(appointment['service'])
@@ -1090,7 +1090,7 @@ def handle_client_flow(resp, user, incoming_msg):
     if incoming_msg in ['hola', 'menu', 'inicio']:
         # Resetear contador de intentos incorrectos
         clients_collection.update_one(
-            {'_id': user['_id']}, 
+            {'_id': user['_id']},
             {'$set': {'state': 'initial'}, '$unset': {'service_pending': '', 'pending_date': '', 'cancellation_pending_id': '', 'cancellation_options': '', 'invalid_command_attempts': ''}}
         )
         handle_initial_state(resp, user)
@@ -1125,7 +1125,7 @@ def handle_client_flow(resp, user, incoming_msg):
                 {'_id': user['_id']},
                 {'$set': {'invalid_command_attempts': invalid_attempts}}
             )
-            
+
             # Verificar si debe mostrar advertencia o bloquear
             if invalid_attempts >= 6:
                 # Bloquear usuario
@@ -1149,7 +1149,7 @@ def handle_client_flow(resp, user, incoming_msg):
             if incoming_msg.isdigit():
                 clients_collection.update_one({'_id': user['_id']}, {'$unset': {'invalid_command_attempts': ''}})
             handle_service_selection(resp, user, incoming_msg)
-        
+
         elif current_state == 'awaiting_date':
             # Resetear contador si escribe una fecha válida
             if parse_datetime(incoming_msg):
@@ -1161,19 +1161,19 @@ def handle_client_flow(resp, user, incoming_msg):
             if incoming_msg in ['pagar', 'agendar', 'salir']:
                 clients_collection.update_one({'_id': user['_id']}, {'$unset': {'invalid_command_attempts': ''}})
             handle_booking_confirmation(resp, user, incoming_msg)
-        
+
         elif current_state == 'awaiting_final_confirmation':
             # Resetear contador si escribe un comando correcto
             if incoming_msg in ['confirmar', 'agendar', 'salir']:
                 clients_collection.update_one({'_id': user['_id']}, {'$unset': {'invalid_command_attempts': ''}})
             handle_final_confirmation(resp, user, incoming_msg)
-        
+
         elif current_state == 'awaiting_cancellation_choice':
             # Resetear contador si escribe un comando correcto
             if incoming_msg.isdigit() or incoming_msg == 'salir':
                 clients_collection.update_one({'_id': user['_id']}, {'$unset': {'invalid_command_attempts': ''}})
             handle_cancellation_choice(resp, user, incoming_msg)
-            
+
         elif current_state == 'awaiting_cancellation_confirmation':
             # Resetear contador si escribe un comando correcto
             if incoming_msg in ['si', 'no']:
@@ -1200,7 +1200,7 @@ def whatsapp_dispatcher():
     # --- LÓGICA DE DISTRIBUCIÓN (DISPATCHER) ---
     settings = get_settings()
     admin_numbers = settings.get('admin_numbers', [])
-    
+
     # Comprobar si el usuario es un administrador
     if phone_number in admin_numbers:
         # Revisar el estado actual del admin
@@ -1216,11 +1216,11 @@ def whatsapp_dispatcher():
         if admin_state != 'initial':
             logger.info(f"--- ADMIN IN ADMIN MODE, SKIPPING CLIENT FLOW --- To: {phone_number}")
             return str(resp)
-    
+
     # --- FLUJO DE CLIENTE (Se ejecuta si no es admin, o si el admin no usó un comando de admin) ---
     clients_collection = current_app.clients_collection
     user = clients_collection.find_one({'phone_number': phone_number})
-    
+
     if not user:
         user_name = request.values.get('ProfileName', 'Nuevo Usuario')
         user = {
@@ -1229,7 +1229,7 @@ def whatsapp_dispatcher():
         }
         clients_collection.insert_one(user)
         logger.info(f"Nuevo usuario creado: {user_name} ({phone_number})")
-    
+
     # Recargar el usuario por si acaso fue recién creado
     user = clients_collection.find_one({'phone_number': phone_number})
 
@@ -1246,7 +1246,7 @@ def whatsapp_dispatcher():
             return str(resp)
     else:
         handle_client_flow(resp, user, incoming_msg)
-    
+
     logger.info(f"--- OUTGOING --- To: {phone_number}, Response:\n{str(resp)}")
     return str(resp)
 
@@ -1291,7 +1291,7 @@ def handle_cancellation(user_id, service_name):
         today = datetime.now().date()
         today_start = datetime.combine(today, datetime.min.time())
         today_end = datetime.combine(today, datetime.max.time())
-        
+
         # Contar cancelaciones para este servicio HOY
         cancellations_today = current_app.appointments_collection.count_documents({
             'client_id': user_id,
@@ -1299,21 +1299,21 @@ def handle_cancellation(user_id, service_name):
             'status': 'cancelled',
             'cancelled_at': {'$gte': today_start, '$lte': today_end}
         })
-        
+
         # Obtener usuario
         user = current_app.clients_collection.find_one({'_id': user_id})
         if not user:
             return "Usuario no encontrado."
-        
+
         # Inicializar campos si no existen
         if 'cancellation_counts' not in user:
             user['cancellation_counts'] = {}
         if 'blocked_services' not in user:
             user['blocked_services'] = {}
-        
+
         # Actualizar contador
         current_count = user['cancellation_counts'].get(service_name, 0) + 1
-        
+
         # Actualizar en base de datos
         current_app.clients_collection.update_one(
             {'_id': user_id},
@@ -1323,7 +1323,7 @@ def handle_cancellation(user_id, service_name):
                 }
             }
         )
-        
+
         # Verificar si debe bloquear
         settings = get_settings()
         max_cancellations = settings.get('max_cancellations_per_service', 3)
@@ -1333,16 +1333,16 @@ def handle_cancellation(user_id, service_name):
                 {'_id': user_id},
                 {'$set': {f'blocked_services.{service_name}': True}}
             )
-            
+
             # Notificar por correo
             notify_blocked_users()
-            
+
             return f"🚫 Has sido bloqueado para {service_name} por {max_cancellations} cancelaciones en el mismo día."
         elif current_count == 2:
             return f"🚨 ADVERTENCIA: Esta es tu 2ª cancelación de {service_name} hoy. Una más y serás bloqueado."
         else:
             return f"✅ Cancelación registrada. Cancelaciones de {service_name} hoy: {current_count}/{max_cancellations}"
-            
+
     except Exception as e:
         logger.error(f"Error en handle_cancellation: {e}", exc_info=True)
         return "Error al procesar cancelación."
@@ -1355,24 +1355,24 @@ def check_inappropriate_language(user_id, message):
     try:
         settings = get_settings()
         inappropriate_words = settings.get('inappropriate_words', [])
-        
+
         message_lower = message.lower()
         inappropriate_count = sum(1 for word in inappropriate_words if word in message_lower)
-        
+
         if inappropriate_count > 0:
             user = current_app.clients_collection.find_one({'_id': user_id})
             if not user:
                 return "Usuario no encontrado."
-            
+
             # Incrementar contador
             current_count = user.get('inappropriate_language_count', 0) + 1
-            
+
             # Actualizar en base de datos
             current_app.clients_collection.update_one(
                 {'_id': user_id},
                 {'$set': {'inappropriate_language_count': current_count}}
             )
-            
+
             # Verificar si debe bloquear
             max_inappropriate = settings.get('max_inappropriate_language', 3)
             if current_count >= max_inappropriate:
@@ -1381,16 +1381,16 @@ def check_inappropriate_language(user_id, message):
                     {'_id': user_id},
                     {'$set': {'is_blocked': True}}
                 )
-                
+
                 # Notificar por correo
                 notify_blocked_users()
-                
+
                 return "🚫 Has sido bloqueado por usar lenguaje inapropiado 3 veces."
             else:
                 return f"⚠️ ADVERTENCIA {current_count}/{max_inappropriate}: Por favor, mantén un lenguaje respetuoso."
-        
+
         return None  # No hay lenguaje inapropiado
-        
+
     except Exception as e:
         logger.error(f"Error en check_inappropriate_language: {e}", exc_info=True)
         return None
@@ -1403,7 +1403,7 @@ def create_blocked_users_message():
         message_parts = ["🚫 USUARIOS BLOQUEADOS - REPORTE AUTOMÁTICO"]
         message_parts.append(f"📅 Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
         message_parts.append("")
-        
+
         # Usuarios completamente bloqueados
         blocked_users = list(current_app.clients_collection.find({'is_blocked': True}))
         if blocked_users:
@@ -1412,7 +1412,7 @@ def create_blocked_users_message():
                 reason = "Lenguaje inapropiado" if user.get('inappropriate_language_count', 0) >= 3 else "Múltiples violaciones"
                 message_parts.append(f"• {user['name']} ({user.get('phone_number', 'N/A')}) - {reason}")
             message_parts.append("")
-        
+
         # Usuarios con servicios bloqueados
         users_with_blocked_services = []
         for user in current_app.clients_collection.find({}):
@@ -1420,7 +1420,7 @@ def create_blocked_users_message():
             blocked_service_names = [service for service, blocked in blocked_services.items() if blocked]
             if blocked_service_names:
                 users_with_blocked_services.append((user, blocked_service_names))
-        
+
         if users_with_blocked_services:
             message_parts.append("🟡 USUARIOS CON SERVICIOS BLOQUEADOS:")
             for user, blocked_services in users_with_blocked_services:
@@ -1429,12 +1429,12 @@ def create_blocked_users_message():
                     count = user.get('cancellation_counts', {}).get(service, 0)
                     message_parts.append(f"  - {service}: {count} cancelaciones")
             message_parts.append("")
-        
+
         if not blocked_users and not users_with_blocked_services:
             message_parts.append("✅ No hay usuarios bloqueados actualmente.")
-        
+
         return "\n".join(message_parts)
-        
+
     except Exception as e:
         logger.error(f"Error en create_blocked_users_message: {e}", exc_info=True)
         return "Error al generar reporte de usuarios bloqueados."
@@ -1448,7 +1448,7 @@ def display_admin_menu(resp, menu_config):
     """Construye y envía un menú de administrador a partir de un diccionario de configuración."""
     title = menu_config.get('title', "Menú de Administrador")
     options = menu_config.get('options', [])
-    
+
     message_parts = [title]
     for opt in options:
         message_parts.append(f"{opt['key']}. {opt['text']}")
@@ -1508,7 +1508,7 @@ def handle_admin_flow(resp, phone_number, incoming_msg):
                         display_admin_menu(resp, next_menu_config)
                 elif 'prompt' in selected_option:
                     resp.message(selected_option['prompt'])
-            
+
             elif 'action' in selected_option:
                 action = selected_option['action']
                 if action == 'show_blocked_users':
@@ -1530,7 +1530,7 @@ def handle_admin_flow(resp, phone_number, incoming_msg):
                     handle_toggle_calendar_block(resp)
         else:
             display_admin_menu(resp, menu_config)
-        
+
         return True
 
     # ---- MANEJO DE ESTADOS ESPECÍFICOS (NO MENÚS) ----
@@ -1574,7 +1574,7 @@ def handle_view_appointments(resp, phone_number, incoming_msg):
     }).sort('date', 1)
 
     appointments = list(appointments_cursor)
-    
+
     if not appointments:
         resp.message(f"No hay citas confirmadas para el {start_of_day.strftime('%d/%m/%Y')}.")
     else:
@@ -1585,7 +1585,7 @@ def handle_view_appointments(resp, phone_number, incoming_msg):
             local_time = appt_date.astimezone(santiago_tz)
             message += f"• {local_time.strftime('%H:%M')} - {appt['service']} ({appt['client_name']})\n"
         resp.message(message)
-    
+
     admin_collection.update_one({'phone_number': phone_number}, {'$set': {'state': 'admin_menu'}})
 
 def handle_update_start_hour(resp, phone_number, incoming_msg):
@@ -1639,7 +1639,7 @@ def handle_cancellation_decision(resp, phone_number, incoming_msg):
             from bson import ObjectId
             appt_id = ObjectId(appt_id_str)
             appt = appointments_collection.find_one({'_id': appt_id})
-            
+
             if not appt:
                 logger.error(f"Appointment {appt_id_str} not found")
                 return False
@@ -1735,7 +1735,7 @@ def handle_cancellation_decision(resp, phone_number, incoming_msg):
 
         message += "\n\nResponde con el número, escribe *'todas'* para cancelarlas todas, o *'salir'* para volver."
         resp.message(message)
-        
+
         admin_collection.update_one(
             {'phone_number': phone_number},
             {'$set': {'state': 'awaiting_cancellation_choice', 'cancellation_options': cancellation_options}}
@@ -1825,7 +1825,7 @@ def handle_cancellation_decision(resp, phone_number, incoming_msg):
         elif incoming_msg == 'salir':
             return_to_main_menu("Cancelación abortada. Volviendo al menú de administrador.")
             return True
-        
+
         else:
             resp.message("Opción no válida. Por favor, elige un número de la lista, 'todas' o 'salir'.")
             return True

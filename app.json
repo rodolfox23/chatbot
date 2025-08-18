@@ -1,0 +1,53 @@
+{
+  "name": "Peluqueria WhatsApp Bot",
+  "description": "WhatsApp bot for hair salon appointment booking",
+  "repository": "https://github.com/yourusername/peluqueria_whatsapp_bot",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["python", "flask", "whatsapp", "bot", "appointments"],
+  "env": {
+    "FLASK_ENV": {
+      "description": "Flask environment",
+      "value": "production"
+    },
+    "FLASK_DEBUG": {
+      "description": "Flask debug mode",
+      "value": "false"
+    },
+    "MONGODB_URI": {
+      "description": "MongoDB connection string",
+      "required": true
+    },
+    "TWILIO_ACCOUNT_SID": {
+      "description": "Twilio Account SID",
+      "required": true
+    },
+    "TWILIO_AUTH_TOKEN": {
+      "description": "Twilio Auth Token",
+      "required": true
+    },
+    "MERCADOPAGO_ACCESS_TOKEN": {
+      "description": "MercadoPago Access Token",
+      "required": true
+    },
+    "GOOGLE_CALENDAR_ID": {
+      "description": "Google Calendar ID",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "mongolab:sandbox"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+} 

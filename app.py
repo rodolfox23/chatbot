@@ -16,7 +16,6 @@ from utils import get_settings, load_messages, get_active_services, get_service_
 import dateutil.parser
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
-import certifi
 
 # Cargar variables de entorno al inicio
 load_dotenv()
@@ -62,17 +61,23 @@ def create_app():
     This pattern allows each worker to have its own application context.
     """
     app = Flask(__name__)
+
+    # La configuración ahora se maneja directamente con os.getenv(),
+    # por lo que app.config.from_object(Config) ya no es necesario.
+
+    # Setup MongoDB Connection
     try:
-        client = MongoClient(
-               os.getenv("MONGODB_URI"),
-               tlsCAFile=certifi.where(),
-               serverSelectionTimeoutMS=30000,
-               connectTimeoutMS=30000,
-               socketTimeoutMS=30000,
-               retryWrites=True,
-               retryReads=True,
-           )
-        db = client['peluqueria_bot']
+        mongodb_uri = os.getenv("MONGODB_URI")
+        if not mongodb_uri:
+            logger.error("MONGODB_URI environment variable not set")
+            # Use default messages and settings for now
+            app.messages = DEFAULT_MESSAGES
+            app.active_services = []
+            app.settings = {}
+            return app
+            
+        client = MongoClient(mongodb_uri)
+        db = client['peluqueria_bot'] # EXPLICITLY select the database
         app.db = db
         app.clients_collection = db.clients
         app.appointments_collection = db.appointments
@@ -97,6 +102,10 @@ def create_app():
         
         # --- CIRUGÍA DE PLANTILLAS: Se ejecuta siempre para garantizar el formato correcto ---
         try:
+            if not hasattr(app, 'db') or not app.db:
+                logger.warning("Skipping template updates - no database connection")
+                return app
+                
             messages_collection = app.db.messages
             
             # Plantilla para pedir la fecha
@@ -187,6 +196,10 @@ def create_app():
         app.appointments_collection = None
         app.clients_collection = None
         app.active_services = []
+
+    # La gestión de la conexión ahora se maneja por cada función que la necesita,
+    # por lo que el teardown global no es estrictamente necesario en este nuevo enfoque.
+
     return app
 
 # Create the app instance using the factory
@@ -1968,17 +1981,9 @@ def mostrar_citas_del_dia(resp):
         mensaje += f"\n• {servicio} — {nombre} — {telefono} — {hora}"
     resp.message(mensaje)
 
-if __name__ == '__main__':
-    # For development, run directly. For production, Gunicorn will use the `app` factory.
-    app.run(debug=True, port=5001)
+# Crear la instancia de la aplicación para Gunicorn
+app = create_app()
 
-    # --- BLOQUE TEMPORAL PARA ACTUALIZAR MENSAJE DE FECHA ---
-    from utils import get_db_connection
-    db = get_db_connection()
-    db.messages.update_one(
-        {'key': 'invalid_date_format'},
-        {'$set': {'value': '🕒 Ups, no entendí la fecha.\nPor favor escribe algo así como:\n👉 22/06 a las 14:30\n👉 hoy a las 16:00'}},
-        upsert=True
-    )
-    current_app.messages = load_messages()
-    print('Mensaje de formato de fecha actualizado y recargado en memoria.')
+if __name__ == '__main__':
+    # For development, run directly. For production, Gunicorn will use the `app` variable above.
+    app.run(debug=True, port=5001)
